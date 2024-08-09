@@ -1,7 +1,15 @@
 import express from 'express'
+import cors from 'cors'
+import multer from 'multer'
+
 
 const servidor = express()
 servidor.use(express.json())
+servidor.use(cors())
+
+let uploadPerfil = multer({dest: './storage/perfil'})
+
+servidor.use('/storage/perfil', express.static('./storage/perfil'))
 
 
 //get, (consulta) /helloworld, (parametro) 
@@ -31,10 +39,24 @@ servidor.get('/mensagem/recebendo/novo', (res, req) => {
 //calculadora 
 
 servidor.get('/calculadora/somar/:n1/:n2', (res, req) => {
+
+    if (isNaN(res.params.n1) || isNaN(res.params.n2)) {
+        req.status(402).send ({
+            erro: 'os parametros devem ser números'
+        })
+    
+    }
+
     let n1 = Number(res.params.n1)
     let n2 = Number(res.params.n2)
     let soma = n1 + n2
-    req.send(`a soma de ${n1} e ${n2} é ${soma}`)
+    req.send({
+        entradas: {
+            numero1:n1,
+            numero2: n2
+       },
+       soma: soma
+    })
 })
 
 servidor.get('/calculadora/subtrair/:n1/:n2', (res, req) => {
@@ -104,10 +126,12 @@ servidor.post('/vetor', (res, resp) => {
 })
 
 //parâmetros combinados
-servidor.post('/loja/pedido', (res, resp) => {
-    let total = res.body.total
-    let parcela = res.body.parcelas
-    let cupom = res.query.cupom
+servidor.post('/loja/pedido', (req, resp) => {
+
+   
+    let total = req.body.total
+    let parcela = req.body.parcelas
+    let cupom = req.query.cupom
 
     if (parcela > 1) {
         let juros = total * 0.05
@@ -122,26 +146,52 @@ servidor.post('/loja/pedido', (res, resp) => {
 })
 
 //parâmetro vetor de objeto
-servidor.post('/loja/pedido/completo', (res, resp) => {
-    let itens = res.body.itens
-    let parcelas = res.body.parcelas
-    let cupom = res.query.cupom
-
-    let total = 0
-    for (let pedido of itens) {
-        total += pedido.preco
+servidor.post('/loja/pedido/completo', (req, resp) => {
+    try {
+        if(!req.body.parcelas || isNaN(req.body.parcelas)) throw new Error('O parâmetro parcela está invalido')
+        if(!req.body.itens) throw new Error('O parâmetro itens está invalido')
+            
+        let itens = req.body.itens
+        let parcelas = req.body.parcelas
+        let cupom = req.query.cupom
+    
+        let total = 0
+        for (let pedido of itens) {
+            total += pedido.preco
+        }
+    
+        if (parcelas > 1) {
+            let juros = total * 0.05
+            total += juros
+        }
+    
+        if (cupom === "QUERO100") {
+            total -= 100
+        }
+    
+        resp.send({
+            total: total
+        })
     }
-
-    if (parcelas > 1) {
-        let juros = total * 0.05
-        total += juros
+    catch(err) {
+        resp.status(400).send ({
+            erro: err.message
+        })
     }
+   
 
-    if (cupom === "QUERO100") {
-        total -= 100
-    }
+})
 
-    resp.send(`O total do pedido é ${total}`)
+servidor.post('/perfil/capa', uploadPerfil.single('imagem'), (req, resp) => {
+    let caminho = req.file.path;
+    let extensao = req.file.mimetype;
+    let nome = req.file.originalname;
+
+    resp.send ({
+        caminho: caminho,
+        extensao: extensao,
+        nome: nome
+    })
 
 })
 
